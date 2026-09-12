@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1",
+  "name": "awavatar",
+  "description": "One character spec in, a rigged, animated, multi-style avatar pack out.",
+  "url": "https://aitherium.github.io/awavatar/",
+  "repository": "https://github.com/Aitherium/awavatar",
+  "kind": "tool",
+  "status": "public",
+  "adopt": "Validate one character_spec.json and one character_pack/ against their schemas and refuse the pack if any file's hash, licence or rig audit is missing.",
+  "pairs_with": [
+    "awrtifact",
+    "awdk",
+    "awsprite",
+    "awrun",
+    "awdesk"
+  ],
+  "includes": [],
+  "metrics": {
+    "files": {
+      "value": 13,
+      "as_of": "2026-09-11T19:09:45-07:00"
+    },
+    "tests": {
+      "value": 1,
+      "as_of": "2026-09-11T19:09:45-07:00"
+    }
+  }
+}
