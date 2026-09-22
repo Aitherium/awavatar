@@ -17,6 +17,17 @@ dev = ["pytest>=7.0"]
 [project.scripts]
 awavatar = "awavatar.cli:main"
 
+# Ownership proof, and the reason 0.0.1 could not publish a successor: the
+# publish lane asks PyPI whether an existing project of this name is OURS, and
+# reads author / author_email / maintainer / home_page / project_urls for the
+# mark. 0.0.1 shipped with none of them set, so PyPI answers None to every one
+# and the lane correctly refuses to push a release into a name it cannot claim.
+# Every sibling brick carries this block; awavatar was the one that did not.
+[project.urls]
+Homepage = "https://github.com/Aitherium/awavatar"
+Documentation = "https://github.com/Aitherium/awavatar#readme"
+Repository = "https://github.com/Aitherium/awavatar.git"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["awavatar*"]
