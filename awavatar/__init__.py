@@ -3,7 +3,7 @@
 The contracts of a character factory, and a thin client for one.
 """
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 from .schemas import (  # noqa: F401
     RATING_ORDER,

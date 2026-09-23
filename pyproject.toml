@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "awavatar"
-version = "0.0.1"
+version = "0.0.2"
 description = "One character spec in, a rigged, animated, multi-style asset pack out — the schemas, validators and thin client for a media-forge-shaped character factory."
 readme = "README.md"
 requires-python = ">=3.10"
