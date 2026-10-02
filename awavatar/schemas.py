@@ -11,6 +11,7 @@ nothing about whether a character is a good one.
 
 from __future__ import annotations
 
+import re
 import sys
 
 RATING_ORDER = {"pg": 0, "suggestive": 1, "explicit": 2, "brutal": 3}
@@ -19,6 +20,13 @@ SKELETONS = {"anny", "kaykit", "cc5"}
 TARGETS = {"coc", "dm-world", "awdesk", "space"}
 TARGET_CEILING = {"coc": "brutal", "dm-world": "pg", "awdesk": "suggestive", "space": "pg"}
 CLIP_MIN = ("idle",)
+# Plane 3 (Dark Matters): the platform join key a spec may carry (party manifest / desk roster /
+# customise sidecar), the persona's style-card prose, and the body's desk customise recipe. All
+# OPTIONAL: a spec without them is the pre-Plane-3 spec and still validates.
+PERSONA_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+PERSONA_ID_MAX = 128
+STYLE_CARD_MAX = 2000
+CUSTOMISE_SECTIONS = {"blendshapes", "boneScale", "materials"}
 QUEST_OBJECTIVE_TYPES = {"collect", "kill", "explore", "talk", "craft", "escort"}
 
 
@@ -114,6 +122,37 @@ def validate_character_spec(doc) -> list[str]:
         out.append(f"{w}: target dm-world needs the kaykit skeleton")
     if doc["seed"] < 0:
         out.append(f"{w}: seed must be >= 0")
+    # Plane 3 optional fields
+    if "persona_id" in doc:
+        pid = doc["persona_id"]
+        if not isinstance(pid, str) or not PERSONA_ID_RE.match(pid) or len(pid) > PERSONA_ID_MAX:
+            out.append(
+                f"{w}: persona_id {pid!r} must match ^[A-Za-z0-9][A-Za-z0-9._-]*$ "
+                f"(<= {PERSONA_ID_MAX})"
+            )
+    if "style_card" in doc:
+        sc = doc["style_card"]
+        if not isinstance(sc, str):
+            out.append(f"{w}: style_card must be a string")
+        elif len(sc) > STYLE_CARD_MAX:
+            out.append(f"{w}: style_card longer than {STYLE_CARD_MAX}")
+    if "customise" in doc:
+        cu = doc["customise"]
+        if not isinstance(cu, dict):
+            out.append(f"{w}: customise must be an object")
+        else:
+            for k in cu:
+                if k not in CUSTOMISE_SECTIONS:
+                    out.append(
+                        f"{w}: customise.{k} is not a section (blendshapes|boneScale|materials)"
+                    )
+            bs = cu.get("boneScale")
+            if bs is not None and (
+                not isinstance(bs, dict)
+                or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+                           for v in bs.values())
+            ):
+                out.append(f"{w}: customise.boneScale must map bone names to positive numbers")
     return out
 
 
@@ -467,6 +506,9 @@ def example_character_spec() -> dict:
         "clips": ["idle", "walk", "run", "attack", "cast", "sit", "death"],
         "targets": ["coc", "dm-world", "awdesk"],
         "seed": 20061,
+        "persona_id": "elara",
+        "style_card": "soft watercolour, warm rim light",
+        "customise": {"boneScale": {"spine": 1.05}},
     }
 
 
@@ -696,6 +738,25 @@ def self_test() -> int:
     d = example_character_spec()
     d["clips"] = ["walk"]
     expect("character_spec", d, "must include 'idle'")
+    d = example_character_spec()
+    d["persona_id"] = "bad id"
+    expect("character_spec", d, "persona_id")
+    d = example_character_spec()
+    d["style_card"] = "x" * (STYLE_CARD_MAX + 1)
+    expect("character_spec", d, "style_card longer")
+    d = example_character_spec()
+    d["customise"] = {"hair": {}}
+    expect("character_spec", d, "customise.hair is not a section")
+    d = example_character_spec()
+    d["customise"] = {"boneScale": {"spine": -1}}
+    expect("character_spec", d, "boneScale must map")
+    d = example_character_spec()
+    for k in ("persona_id", "style_card", "customise"):
+        d.pop(k)
+    if validate_character_spec(d):
+        problems.append(
+            "a pre-Plane-3 spec (no persona_id/style_card/customise) no longer validates"
+        )
     d = example_character_spec()
     d["provenance"] = {"author": "x"}
     expect("character_spec", d, "provenance.license")
