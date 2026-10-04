@@ -27,6 +27,13 @@ PERSONA_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 PERSONA_ID_MAX = 128
 STYLE_CARD_MAX = 2000
 CUSTOMISE_SECTIONS = {"blendshapes", "boneScale", "materials"}
+# Optional speaking voice. A stock engine voice id ("af_heart", "en-US-AvaNeural") or a
+# workspace-built voice as "custom:<name>"; consumers route custom:* to their own synthesis
+# path. <name> follows the voice-build name rule (lowercase, 2-32, starts with a letter).
+VOICE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+VOICE_ID_MAX = 128
+CUSTOM_VOICE_PREFIX = "custom:"
+CUSTOM_VOICE_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 QUEST_OBJECTIVE_TYPES = {"collect", "kill", "explore", "talk", "craft", "escort"}
 
 
@@ -153,7 +160,25 @@ def validate_character_spec(doc) -> list[str]:
                            for v in bs.values())
             ):
                 out.append(f"{w}: customise.boneScale must map bone names to positive numbers")
+    if "voice" in doc:
+        out.extend(_voice_problems(doc["voice"], w))
     return out
+
+
+def _voice_problems(v, w: str) -> list[str]:
+    if not isinstance(v, str):
+        return [f"{w}: voice must be a string"]
+    if v.startswith(CUSTOM_VOICE_PREFIX):
+        name = v[len(CUSTOM_VOICE_PREFIX):]
+        if not CUSTOM_VOICE_NAME_RE.fullmatch(name):
+            return [f"{w}: voice {v!r} must be custom:<name> with name ^[a-z][a-z0-9-]{{1,31}}$"]
+        return []
+    if not VOICE_ID_RE.fullmatch(v) or len(v) > VOICE_ID_MAX:
+        return [
+            f"{w}: voice {v!r} must be a stock voice id ^[A-Za-z0-9][A-Za-z0-9._-]*$ "
+            f"(<= {VOICE_ID_MAX}) or custom:<name>"
+        ]
+    return []
 
 
 # ---------------------------------------------------------- world_spec ----
@@ -750,6 +775,16 @@ def self_test() -> int:
     d = example_character_spec()
     d["customise"] = {"boneScale": {"spine": -1}}
     expect("character_spec", d, "boneScale must map")
+    for bad_voice in ("custom:", "custom:Bad Name", "custom:x", 7, "has space", "custom:ab\n",
+                      "af_heart\n"):
+        d = example_character_spec()
+        d["voice"] = bad_voice
+        expect("character_spec", d, "voice")
+    for good_voice in ("custom:grandma-reads", "af_heart", "en-US-AvaNeural"):
+        d = example_character_spec()
+        d["voice"] = good_voice
+        if validate_character_spec(d):
+            problems.append(f"character_spec: voice {good_voice!r} should validate")
     d = example_character_spec()
     for k in ("persona_id", "style_card", "customise"):
         d.pop(k)
