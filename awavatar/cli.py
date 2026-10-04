@@ -4,6 +4,8 @@
     awavatar validate-world <world_spec.yaml|json>
     awavatar validate-pack <pack_dir>
     awavatar submit <character_spec.json> --server http://127.0.0.1:8200 [--wait]
+    awavatar validate-presence <presence_roster.json>
+    awavatar apply-presence <character_spec.json> --roster <presence_roster.json>
 
 Exit 0 valid | 1 invalid | 2 could not judge (unreadable file, unreachable server).
 """
@@ -18,6 +20,7 @@ import sys
 import urllib.error
 import urllib.request
 
+from .presence import apply_presence, validate_presence_roster
 from .schemas import validate_character_spec, validate_world_spec
 
 
@@ -53,6 +56,25 @@ def _report(problems: list[str], what: str) -> int:
 
 def cmd_validate_spec(a) -> int:
     return _report(validate_character_spec(_load(a.path)), "character_spec")
+
+
+def cmd_validate_presence(a) -> int:
+    return _report(validate_presence_roster(_load(a.path)), "presence_roster")
+
+
+def cmd_apply_presence(a) -> int:
+    """Print the spec with its voice defaulted from the roster (the spec's own voice wins).
+    Exit 1 when either document is invalid, so a bad roster never leaks a voice."""
+    spec, roster = _load(a.path), _load(a.roster)
+    problems = validate_presence_roster(roster)
+    if problems:
+        return _report(problems, "presence_roster")
+    merged = apply_presence(spec, roster)
+    problems = validate_character_spec(merged)
+    if problems:
+        return _report(problems, "character_spec")
+    print(json.dumps(merged, indent=2))
+    return 0
 
 
 def cmd_validate_world(a) -> int:
@@ -122,6 +144,13 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("validate-pack")
     s.add_argument("path")
     s.set_defaults(fn=cmd_validate_pack)
+    s = sub.add_parser("validate-presence")
+    s.add_argument("path")
+    s.set_defaults(fn=cmd_validate_presence)
+    s = sub.add_parser("apply-presence")
+    s.add_argument("path")
+    s.add_argument("--roster", required=True)
+    s.set_defaults(fn=cmd_apply_presence)
     s = sub.add_parser("submit")
     s.add_argument("path")
     s.add_argument("--server", default="http://127.0.0.1:8200")

@@ -21,6 +21,8 @@ and is this pack something a host may load?"* — answered the same way on every
 pip install awavatar
 awavatar validate-spec character_spec.json          # schema_version-routed validation
 awavatar validate-pack ./character_pack/            # hashes, licences, rig audit, VRM bones
+awavatar validate-presence roster.json               # declared per-agent voice + desk character
+awavatar apply-presence character_spec.json --roster roster.json   # default a missing voice
 awavatar submit character_spec.json --server http://127.0.0.1:8200   # any media-forge-shaped server
 ```
 
@@ -41,6 +43,7 @@ arrives in. If you are looking for a face on your desktop, you want `awdesk`.
 | `character_pack` v1 | the one output: `manifest.json` + bodies/clips/VRM/renders, every file hashed and licensed | game clients, awdesk, Spaces |
 | `world_spec` v1 | zones, NPCs, spawn camps, quests, dungeons, recipes, lore, realm rating | the World Spec compiler |
 | `companion_state` v1 | one companion state, three hosts (sim tick, wallclock, published snapshot) | game clients, awdesk, Spaces |
+| `presence_roster` v1 | each agent's declared speaking `voice` and desk `character`: a default a desk falls back on, never an override (`apply-presence` fills a spec's missing `voice` from it; a spec's own voice wins) | awdesk, the character factory |
 
 Validators are pure stdlib and carry a `--self-test` that proves each rule can fail.
 `validate-pack` delegates to the same rule set the AitherOS gate `check_character_pack.py`

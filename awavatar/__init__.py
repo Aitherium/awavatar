@@ -14,3 +14,8 @@ from .schemas import (  # noqa: F401
     validate_tf_event,
     validate_world_spec,
 )
+from .presence import (  # noqa: F401
+    apply_presence,
+    presence_for,
+    validate_presence_roster,
+)
