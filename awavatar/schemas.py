@@ -35,6 +35,14 @@ VOICE_ID_MAX = 128
 CUSTOM_VOICE_PREFIX = "custom:"
 CUSTOM_VOICE_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 QUEST_OBJECTIVE_TYPES = {"collect", "kill", "explore", "talk", "craft", "escort"}
+# Optional persistent injury state (Dark Matters body/injury.ts): the body's wounds, lost/broken
+# parts, scars and blood/grime, already projected to a content tier. The tier can never exceed the
+# spec's own rating: "blood" needs a rating above pg, "gore" needs brutal, and a pg projection
+# carries no bleeding and no blood.
+INJURY_TIERS = {"pg": "pg", "blood": "suggestive", "gore": "brutal"}   # tier -> minimum spec rating
+INJURY_REGIONS = {"head", "torso", "leftArm", "rightArm", "leftLeg", "rightLeg"}
+INJURY_KINDS = {"cut", "stab", "bite", "lash", "bruise", "burn", "fracture", "stump"}
+INJURY_LIMPS = {"", "left", "right", "both"}
 
 
 class SchemaError(ValueError):
@@ -162,6 +170,68 @@ def validate_character_spec(doc) -> list[str]:
                 out.append(f"{w}: customise.boneScale must map bone names to positive numbers")
     if "voice" in doc:
         out.extend(_voice_problems(doc["voice"], w))
+    if "injuries" in doc:
+        out.extend(_injury_problems(doc["injuries"], doc.get("rating"), w))
+    return out
+
+
+def _num(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _injury_problems(inj, rating, w: str) -> list[str]:
+    """Optional `injuries`: a tier-projected persistent body state. Absent = an unhurt body."""
+    p = f"{w}: injuries"
+    if not isinstance(inj, dict):
+        return [f"{p} must be an object"]
+    out: list[str] = []
+    tier = inj.get("tier")
+    if tier not in INJURY_TIERS:
+        out.append(f"{p}.tier {tier!r} not in {sorted(INJURY_TIERS)}")
+    elif rating in RATING_ORDER and RATING_ORDER[rating] < RATING_ORDER[INJURY_TIERS[tier]]:
+        out.append(f"{p}.tier {tier} exceeds the spec rating {rating}")
+    wounds = inj.get("wounds", [])
+    if not isinstance(wounds, list):
+        out.append(f"{p}.wounds must be an array")
+        wounds = []
+    for i, wd in enumerate(wounds):
+        q = f"{p}.wounds[{i}]"
+        if not isinstance(wd, dict):
+            out.append(f"{q} must be an object")
+            continue
+        if wd.get("region") not in INJURY_REGIONS:
+            out.append(f"{q}.region {wd.get('region')!r} not in {sorted(INJURY_REGIONS)}")
+        if wd.get("kind") not in INJURY_KINDS:
+            out.append(f"{q}.kind {wd.get('kind')!r} not in {sorted(INJURY_KINDS)}")
+        sev = wd.get("severity")
+        if not (isinstance(sev, int) and not isinstance(sev, bool) and 1 <= sev <= 3):
+            out.append(f"{q}.severity must be an integer 1..3")
+        for f in ("bleeding", "bandaged"):
+            if f in wd and not isinstance(wd[f], bool):
+                out.append(f"{q}.{f} must be a boolean")
+        if "healed" in wd and not (_num(wd["healed"]) and 0 <= wd["healed"] <= 1):
+            out.append(f"{q}.healed must be a number 0..1")
+        if tier == "pg" and wd.get("bleeding") is True:
+            out.append(f"{q}: a pg projection may not carry bleeding wounds")
+    for f in ("severed", "broken", "descriptors"):
+        v = inj.get(f, [])
+        if not isinstance(v, list) or not all(isinstance(x, str) and x for x in v):
+            out.append(f"{p}.{f} must be an array of non-empty strings")
+    scars = inj.get("scars", [])
+    if not isinstance(scars, list) or not all(
+        isinstance(m, dict) and m.get("region") in INJURY_REGIONS and m.get("kind") in INJURY_KINDS
+        for m in scars
+    ):
+        out.append(f"{p}.scars must be an array of {{region, kind}}")
+    for f in ("blood", "grime"):
+        if f in inj and not (_num(inj[f]) and 0 <= inj[f] <= 100):
+            out.append(f"{p}.{f} must be a number 0..100")
+    if tier == "pg" and _num(inj.get("blood")) and inj["blood"] > 0:
+        out.append(f"{p}: a pg projection may not carry blood")
+    if "limp" in inj and inj["limp"] not in INJURY_LIMPS:
+        out.append(f"{p}.limp {inj['limp']!r} not in {sorted(INJURY_LIMPS)}")
+    if "signature" in inj and not isinstance(inj["signature"], str):
+        out.append(f"{p}.signature must be a string")
     return out
 
 
@@ -537,6 +607,27 @@ def example_character_spec() -> dict:
     }
 
 
+def example_injuries() -> dict:
+    """A pg-tier projection: a bandaged arm cut, a healed-over lost forearm, a bruised torso."""
+    return {
+        "tier": "pg",
+        "wounds": [
+            {"region": "leftArm", "kind": "cut", "severity": 2, "bleeding": False,
+             "bandaged": True, "healed": 0.2},
+            {"region": "torso", "kind": "bruise", "severity": 2, "bleeding": False,
+             "bandaged": False, "healed": 0.0},
+        ],
+        "severed": ["leftForearm", "leftHand", "leftFingers"],
+        "broken": [],
+        "scars": [{"region": "head", "kind": "cut"}],
+        "blood": 0,
+        "grime": 10,
+        "limp": "",
+        "signature": "1x9k2",
+        "descriptors": ["missing left forearm — the stump neatly bandaged"],
+    }
+
+
 def example_world_spec() -> dict:
     return {
         "schema_version": 1,
@@ -785,6 +876,19 @@ def self_test() -> int:
         d["voice"] = good_voice
         if validate_character_spec(d):
             problems.append(f"character_spec: voice {good_voice!r} should validate")
+    d = example_character_spec()
+    d["injuries"] = example_injuries()
+    if validate_character_spec(d):
+        problems.append(f"character_spec: example injuries should validate, got {validate_character_spec(d)}")
+    d = example_character_spec()
+    d["injuries"] = {**example_injuries(), "tier": "gore"}
+    expect("character_spec", d, "exceeds the spec rating")
+    d = example_character_spec()
+    d["injuries"] = {**example_injuries(), "blood": 40}
+    expect("character_spec", d, "may not carry blood")
+    d = example_character_spec()
+    d["injuries"] = "bleeding"
+    expect("character_spec", d, "injuries must be an object")
     d = example_character_spec()
     for k in ("persona_id", "style_card", "customise"):
         d.pop(k)
