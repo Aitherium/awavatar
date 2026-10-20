@@ -6,6 +6,8 @@
     awavatar submit <character_spec.json> --server http://127.0.0.1:8200 [--wait]
     awavatar validate-presence <presence_roster.json>
     awavatar apply-presence <character_spec.json> --roster <presence_roster.json>
+    awavatar publish-local <import_dir>/<id>/body.vrm --id <name> --roster <desk characters dir>
+    awavatar check-local <file.vrm>
 
 Exit 0 valid | 1 invalid | 2 could not judge (unreadable file, unreachable server).
 """
@@ -14,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -118,6 +121,41 @@ def cmd_submit(a) -> int:
     return 0 if res.get("ok") else 1
 
 
+def cmd_publish_local(a) -> int:
+    """The owner's imported body -> his own desk roster, private + local-only (never uploaded)."""
+    from .local_import import Refused, publish_local
+
+    roster = a.roster or os.environ.get("AWDESK_CHARACTERS_DIR")
+    if not roster:
+        print("DEAD: --roster <desk characters dir> (or AWDESK_CHARACTERS_DIR) is required")
+        return 2
+    try:
+        r = publish_local(a.path, a.id, roster, name=a.name, rating=a.rating)
+    except Refused as e:
+        print(f"REFUSED: {e}")
+        return 1
+    except OSError as e:
+        print(f"DEAD: {e}")
+        return 2
+    print(json.dumps(r))
+    print(f"switch the desk to it: MCP set_character name={a.id}  (or pwsh switch-character.ps1 {a.id})")
+    return 0
+
+
+def cmd_check_local(a) -> int:
+    """Exit 0 when the file is an import-rung local-only body, 1 when it is not, 2 unreadable."""
+    from .local_import import glb_json, local_only_stamp
+
+    try:
+        data = pathlib.Path(a.path).read_bytes()
+    except OSError as e:
+        print(f"DEAD: {e}")
+        return 2
+    stamp = local_only_stamp(glb_json(data))
+    print(json.dumps({"local_only": bool(stamp), "stamp": stamp}))
+    return 0 if stamp else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     # GENERATED doctor intercept (gen_aw_doctor.py) -- do not edit
     _dv = locals().get("argv")
@@ -155,6 +193,16 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("path")
     s.add_argument("--server", default="http://127.0.0.1:8200")
     s.set_defaults(fn=cmd_submit)
+    s = sub.add_parser("publish-local", help="put an imported (local-only) body on your own desk, privately")
+    s.add_argument("path")
+    s.add_argument("--id", required=True)
+    s.add_argument("--roster", default=None)
+    s.add_argument("--name", default=None)
+    s.add_argument("--rating", default="general", choices=["general", "r15", "r18"])
+    s.set_defaults(fn=cmd_publish_local)
+    s = sub.add_parser("check-local", help="is this VRM an import-rung local-only body?")
+    s.add_argument("path")
+    s.set_defaults(fn=cmd_check_local)
     a = ap.parse_args(argv)
     return a.fn(a)
 
