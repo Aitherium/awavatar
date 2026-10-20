@@ -39,7 +39,7 @@ arrives in. If you are looking for a face on your desktop, you want `awdesk`.
 
 | schema | what it is | consumers |
 |---|---|---|
-| `character_spec` v1 | the one input: identity, rating, creature/visual descriptors, styles, skeletons, clips, targets, seed; optional `voice` (a stock voice id or `custom:<name>`, which consumers route to their own synthesis); optional `injuries` (a tier-projected persistent body state: wounds by region, severed/broken parts, scars, blood/grime; the tier never exceeds the spec rating) | the factory, the World Spec compiler |
+| `character_spec` v1 | the one input: identity, rating, creature/visual descriptors, styles, skeletons, clips, targets, seed; optional `voice` (a stock voice id or `custom:<name>`, which consumers route to their own synthesis); optional `injuries` (a tier-projected persistent body state: wounds by region, severed/broken parts, scars, blood/grime; the tier never exceeds the spec rating; kinds/severities are the TRUE ones at every tier, with optional `descriptors_by_tier` and `as_of`/`heal_days` timestamps a consumer heals the body with) | the factory, the World Spec compiler |
 | `character_pack` v1 | the one output: `manifest.json` + bodies/clips/VRM/renders, every file hashed and licensed | game clients, awdesk, Spaces |
 | `world_spec` v1 | zones, NPCs, spawn camps, quests, dungeons, recipes, lore, realm rating | the World Spec compiler |
 | `companion_state` v1 | one companion state, three hosts (sim tick, wallclock, published snapshot) | game clients, awdesk, Spaces |

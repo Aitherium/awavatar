@@ -43,6 +43,14 @@ INJURY_TIERS = {"pg": "pg", "blood": "suggestive", "gore": "brutal"}   # tier ->
 INJURY_REGIONS = {"head", "torso", "leftArm", "rightArm", "leftLeg", "rightLeg"}
 INJURY_KINDS = {"cut", "stab", "bite", "lash", "bruise", "burn", "fracture", "stump"}
 INJURY_LIMPS = {"", "left", "right", "both"}
+INJURY_TIER_RANK = {"pg": 0, "blood": 1, "gore": 2}
+# Optional timestamps a consumer heals the body with: `as_of` (ISO 8601 wall clock of the
+# export) and per-wound `heal_days` (days left to close at the wound's current treatment, the
+# engine's own rates). `descriptors_by_tier` carries the honest wording for every tier AT OR
+# BELOW the projection's tier, so a consumer that clamps lower (a viewer whose adult-content
+# gate is closed) never has to invent text.
+INJURY_AS_OF_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$")
+INJURY_HEAL_DAYS_MAX = 365
 
 
 class SchemaError(ValueError):
@@ -211,6 +219,9 @@ def _injury_problems(inj, rating, w: str) -> list[str]:
                 out.append(f"{q}.{f} must be a boolean")
         if "healed" in wd and not (_num(wd["healed"]) and 0 <= wd["healed"] <= 1):
             out.append(f"{q}.healed must be a number 0..1")
+        hd = wd.get("heal_days")
+        if "heal_days" in wd and not (_num(hd) and 0 <= hd <= INJURY_HEAL_DAYS_MAX):
+            out.append(f"{q}.heal_days must be a number 0..{INJURY_HEAL_DAYS_MAX}")
         if tier == "pg" and wd.get("bleeding") is True:
             out.append(f"{q}: a pg projection may not carry bleeding wounds")
     for f in ("severed", "broken", "descriptors"):
@@ -232,6 +243,22 @@ def _injury_problems(inj, rating, w: str) -> list[str]:
         out.append(f"{p}.limp {inj['limp']!r} not in {sorted(INJURY_LIMPS)}")
     if "signature" in inj and not isinstance(inj["signature"], str):
         out.append(f"{p}.signature must be a string")
+    as_of = inj.get("as_of")
+    if "as_of" in inj and not (isinstance(as_of, str) and INJURY_AS_OF_RE.match(as_of)):
+        out.append(f"{p}.as_of must be an ISO 8601 date-time")
+    if "descriptors_by_tier" in inj:
+        bt = inj["descriptors_by_tier"]
+        if not isinstance(bt, dict):
+            out.append(f"{p}.descriptors_by_tier must be an object")
+        else:
+            for k, v in bt.items():
+                if k not in INJURY_TIERS:
+                    out.append(f"{p}.descriptors_by_tier.{k} is not a tier")
+                    continue
+                if tier in INJURY_TIERS and INJURY_TIER_RANK[k] > INJURY_TIER_RANK[tier]:
+                    out.append(f"{p}.descriptors_by_tier.{k} exceeds the projection tier {tier}")
+                if not isinstance(v, list) or not all(isinstance(x, str) and x for x in v):
+                    out.append(f"{p}.descriptors_by_tier.{k} must be an array of non-empty strings")
     return out
 
 
@@ -608,14 +635,17 @@ def example_character_spec() -> dict:
 
 
 def example_injuries() -> dict:
-    """A pg-tier projection: a bandaged arm cut, a healed-over lost forearm, a bruised torso."""
+    """A pg-tier projection: a bandaged arm cut, a healed-over lost forearm, a bruised torso.
+
+    The kinds and severities are the TRUE ones at every tier (a pg export never renames a cut a
+    bruise); only `bleeding`/`blood` are withheld at pg and the wording is softened."""
     return {
         "tier": "pg",
         "wounds": [
             {"region": "leftArm", "kind": "cut", "severity": 2, "bleeding": False,
-             "bandaged": True, "healed": 0.2},
+             "bandaged": True, "healed": 0.2, "heal_days": 3.2},
             {"region": "torso", "kind": "bruise", "severity": 2, "bleeding": False,
-             "bandaged": False, "healed": 0.0},
+             "bandaged": False, "healed": 0.0, "heal_days": 3.0},
         ],
         "severed": ["leftForearm", "leftHand", "leftFingers"],
         "broken": [],
@@ -624,7 +654,12 @@ def example_injuries() -> dict:
         "grime": 10,
         "limp": "",
         "signature": "1x9k2",
-        "descriptors": ["missing left forearm — the stump neatly bandaged"],
+        "descriptors": ["missing left forearm — a long-healed stump",
+                        "a deep cut on the left arm, bound", "heavy bruising on the torso"],
+        "descriptors_by_tier": {"pg": ["missing left forearm — a long-healed stump",
+                                       "a deep cut on the left arm, bound",
+                                       "heavy bruising on the torso"]},
+        "as_of": "2026-10-19T12:00:00.000Z",
     }
 
 
@@ -889,6 +924,12 @@ def self_test() -> int:
     d = example_character_spec()
     d["injuries"] = "bleeding"
     expect("character_spec", d, "injuries must be an object")
+    d = example_character_spec()
+    d["injuries"] = {**example_injuries(), "descriptors_by_tier": {"gore": ["a raw stump"]}}
+    expect("character_spec", d, "exceeds the projection tier")
+    d = example_character_spec()
+    d["injuries"] = {**example_injuries(), "as_of": "yesterday"}
+    expect("character_spec", d, "as_of")
     d = example_character_spec()
     for k in ("persona_id", "style_card", "customise"):
         d.pop(k)

@@ -70,7 +70,41 @@ def test_injuries_rejects_bad_types_and_tier_leaks():
         ({**base, "severed": [3]}, "severed must be an array"),
         ({**base, "scars": [{"region": "head"}]}, "scars must be an array"),
         ({**base, "limp": "sideways"}, "limp"),
+        ({**base, "as_of": "yesterday"}, "as_of must be an ISO 8601"),
+        ({**base, "as_of": 1760875200}, "as_of must be an ISO 8601"),
+        ({**base, "wounds": [{"region": "head", "kind": "cut", "severity": 1, "heal_days": -1}]},
+         "heal_days"),
+        ({**base, "wounds": [{"region": "head", "kind": "cut", "severity": 1, "heal_days": 9999}]},
+         "heal_days"),
+        ({**base, "descriptors_by_tier": []}, "descriptors_by_tier must be an object"),
+        ({**base, "descriptors_by_tier": {"splatter": ["x"]}}, "is not a tier"),
+        ({**base, "descriptors_by_tier": {"blood": ["x"]}}, "exceeds the projection tier"),
+        ({**base, "descriptors_by_tier": {"pg": [""]}}, "non-empty strings"),
     ]
     for inj, needle in bad:
         problems = schemas.validate_character_spec(_spec(injuries=inj))
         assert any(needle in p for p in problems), (inj, needle, problems)
+
+
+def test_injuries_timestamps_and_tiered_text_are_optional_and_validate():
+    drop = ("as_of", "descriptors_by_tier")
+    base = {k: v for k, v in schemas.example_injuries().items() if k not in drop}
+    base["wounds"] = [{k: v for k, v in w.items() if k != "heal_days"} for w in base["wounds"]]
+    # the #13612 shape still validates
+    assert schemas.validate_character_spec(_spec(injuries=base)) == []
+    gore = {**schemas.example_injuries(), "tier": "gore", "blood": 60,
+            "descriptors_by_tier": {"pg": ["a grievous stab wound on the torso, untended"],
+                                    "blood": ["grievous stab wound on the torso, still bleeding"],
+                                    "gore": ["grievous stab wound on the torso, "
+                                             "gaping open and bleeding freely"]},
+            "as_of": "2026-10-19T12:00:00+02:00"}
+    brutal = _spec(rating="brutal", targets=["coc"], skeletons=["cc5"], injuries=gore)
+    assert schemas.validate_character_spec(brutal) == []
+
+
+def test_example_injuries_are_honest_at_pg():
+    """A pg export keeps the TRUE kind: the bandaged cut stays a cut (was exported a bruise)."""
+    ex = schemas.example_injuries()
+    assert ex["tier"] == "pg"
+    assert any(w["kind"] == "cut" and w["bandaged"] for w in ex["wounds"])
+    assert not any("neatly bandaged" in d for d in ex["descriptors"])
