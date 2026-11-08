@@ -14,5 +14,15 @@
     "awrun",
     "awdesk"
   ],
-  "includes": []
+  "includes": [],
+  "metrics": {
+    "files": {
+      "value": 28,
+      "as_of": "2026-11-08T07:46:23-08:00"
+    },
+    "tests": {
+      "value": 3,
+      "as_of": "2026-11-08T07:46:23-08:00"
+    }
+  }
 }
