@@ -18,4 +18,5 @@ from .presence import (  # noqa: F401
     apply_presence,
     presence_for,
     validate_presence_roster,
+    validate_soul_identity,
 )

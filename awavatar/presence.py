@@ -103,6 +103,37 @@ def apply_presence(spec, roster) -> dict:
     return out
 
 
+def validate_soul_identity(doc) -> list[str]:
+    """Problems with the identity block an agent's SOUL.md declares in its frontmatter
+    (empty = valid)::
+
+        ---
+        persona_id: aither
+        avatar:
+          character: aither
+        ---
+
+    ``persona_id`` is the ONE join key every avatar surface shares (the desk VRM's
+    character.json, the sprite <-> party binding, a character_spec). ``avatar`` is the
+    same {voice?, character?} shape a presence roster entry has, judged by the same rules,
+    so a SOUL can be lifted into a roster without translation."""
+    w = "soul_identity"
+    if not isinstance(doc, dict):
+        return [f"{w}: frontmatter is not an object"]
+    out: list[str] = []
+    pid = doc.get("persona_id")
+    if not isinstance(pid, str) or not PERSONA_ID_RE.match(pid) or len(pid) > PERSONA_ID_MAX:
+        out.append(f"{w}: persona_id {pid!r} must match ^[A-Za-z0-9][A-Za-z0-9._-]*$")
+        return out
+    if "avatar" in doc:
+        roster = {"schema_version": 1, "agents": [pid], "presence": {pid: doc["avatar"]}}
+        out.extend(
+            p.replace("presence_roster: presence", f"{w}: avatar", 1)
+            for p in validate_presence_roster(roster)
+        )
+    return out
+
+
 def example_presence_roster() -> dict:
     return {
         "schema_version": 1,
@@ -150,6 +181,13 @@ def self_test() -> int:
         problems.append("a spec's own voice must beat the roster")
     if "voice" in apply_presence({"persona_id": "saga"}, good):
         problems.append("an agent with no declared voice must not gain one")
+
+    if validate_soul_identity({"persona_id": "aither", "avatar": {"character": "aither"}}):
+        problems.append("a valid SOUL identity should validate")
+    if not validate_soul_identity({"persona_id": "bad id"}):
+        problems.append("a SOUL persona_id with a space must be refused")
+    if not validate_soul_identity({"persona_id": "aither", "avatar": {"vrm": "x"}}):
+        problems.append("an unknown SOUL avatar key must be refused")
 
     if problems:
         print("SELF-TEST FAILED")
