@@ -4,7 +4,7 @@
 
 **[Docs](https://aitherium.github.io/awavatar/)**  ·  [Source](https://github.com/Aitherium/awavatar)  ·  `pip install awavatar`  ·  [The Aither World](https://aitherium.github.io/)
 
-> **The Aither World** is an operating system for agents — a Linux you can hand to one, the runtimes it works in, and the tools it works with. [awnix](https://github.com/Aitherium/awnix) is the Linux underneath it; **awavatar** is one of its 72 bricks — each installs on its own, runs offline, and needs no account. 6 more are in development and 19 are planned.
+> **The Aither World** is an operating system for agents — a Linux you can hand to one, the runtimes it works in, and the tools it works with. [awnix](https://github.com/Aitherium/awnix) is the Linux underneath it; **awavatar** is one of its 72 bricks — each installs on its own, runs offline, and needs no account. 6 more are in development and 23 are planned.
 >
 > **Start here:** Validate one character_spec.json and one character_pack/ against their schemas and refuse the pack if any file's hash, licence or rig audit is missing.
 
@@ -46,13 +46,15 @@ arrives in. If you are looking for a face on your desktop, you want `awdesk`.
 | `presence_roster` v1 | each agent's declared speaking `voice` and desk `character`: a default a desk falls back on, never an override (`apply-presence` fills a spec's missing `voice` from it; a spec's own voice wins) | awdesk, the character factory |
 
 Validators are pure stdlib and carry a `--self-test` that proves each rule can fail.
-`validate-pack` delegates to the same rule set the AitherOS gate `check_character_pack.py`
-runs (CPK001–CPK008); when that file is present next to a monorepo checkout it is used, and
-otherwise the vendored copy in `awavatar/pack.py` is — the two are kept identical by
-`check_awavatar_mirror` (planned).
+`validate-pack` delegates to the AitherOS pack gate `check_character_pack.py`
+when run inside a monorepo checkout; outside one, it exits `2` until the
+standalone vendored copy (`awavatar/pack.py`, kept in parity by a planned
+`check_awavatar_mirror` gate) ships.
 
-Status: **planned** (registered in the Aither World registry before code, per the family
-rule). Nothing here is published yet.
+Status: **v0.0.2 published** on PyPI (`pip install awavatar`) with schema and
+presence validators (`validate-spec`, `validate-world`, `validate-presence`,
+`apply-presence`, `submit`, `publish-local`, `check-local`); standalone
+vendoring of `validate-pack` remains planned.
 
 <!-- aither-ecosystem:start GENERATED from the ecosystem registry. Edits here are overwritten; change the registry instead. -->
 
@@ -124,7 +126,7 @@ Each installs on its own, works offline, and needs no account.
 | [awsettings](https://github.com/Aitherium/awsettings) | that you will remember to re-approve the same thing on every box you work from | one profile, unioned rather than overwritten, with the credentials left behind |
 | **awavatar** _(you are here)_ | a cloud 3D vendor's opaque task id | a manifest with a sha256, a licence and a rig-audit verdict per file |
 
-[**awnix**](https://github.com/Aitherium/awnix) is the ground floor — A Linux you can hand to an agent — immutable base, capabilities included.
+[**awnix**](https://github.com/Aitherium/awnix) is the ground floor — A Linux you can hand to an agent — immutable x86_64 & ARM64 (aarch64) base, capabilities included.
 
 ## The Aitherium ecosystem
 
@@ -158,7 +160,7 @@ Every repository here is public. Each publishes an `aither-manifest.json` beside
 | [awnest](https://github.com/Aitherium/awnest) | Prove there is a human before you let them into the nest | [docs](https://aitherium.github.io/awnest/) |
 | [awrena](https://github.com/Aitherium/awrena) | Put two agents head to head and get a verdict you can check | [docs](https://aitherium.github.io/awrena/) |
 | [awnboard](https://github.com/Aitherium/awnboard) | A front gate you can put in front of anything, and hand someone the key to | [docs](https://aitherium.github.io/awnboard/) |
-| [awnix](https://github.com/Aitherium/awnix) | A Linux you can hand to an agent — immutable base, capabilities included | [docs](https://aitherium.github.io/awnix/) |
+| [awnix](https://github.com/Aitherium/awnix) | A Linux you can hand to an agent — immutable x86_64 & ARM64 (aarch64) base, capabilities included | [docs](https://aitherium.github.io/awnix/) |
 | [awrecover](https://github.com/Aitherium/awrecover) | Labelled snapshots with an all-or-nothing restore | [docs](https://aitherium.github.io/awrecover/) |
 | [awstorage](https://github.com/Aitherium/awstorage) | Every drive on every node, indexed, classified and diffed -- so you can see what you own before you delete it | [docs](https://aitherium.github.io/awstorage/) |
 | [awrelay](https://github.com/Aitherium/awrelay) | Portable agent messaging — findings, alerts, coordination | [docs](https://aitherium.github.io/awrelay/) |
